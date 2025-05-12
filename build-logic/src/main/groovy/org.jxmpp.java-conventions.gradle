@@ -1,0 +1,264 @@
+plugins {
+	id 'biz.aQute.bnd.builder'
+	id 'checkstyle'
+	id 'eclipse'
+	id 'idea'
+	id 'jacoco'
+	id 'java'
+	id 'java-library'
+	id 'maven-publish'
+	id 'net.ltgt.errorprone'
+	id 'signing'
+	id 'com.github.ben-manes.versions'
+
+	id 'jacoco-report-aggregation'
+	id 'test-report-aggregation'
+
+	id 'org.jxmpp.common-conventions'
+	id 'org.jxmpp.javadoc-conventions'
+}
+
+version readVersionFile()
+
+ext {
+	isSnapshot = version.endsWith('-SNAPSHOT')
+	gitCommit = getGitCommit()
+	documentationDir = new File(projectDir, 'documentation')
+	releasedocsDir = new File(buildDir, 'releasedocs')
+	rootConfigDir = new File(rootDir, 'config')
+	sonatypeCredentialsAvailable = project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')
+	isReleaseVersion = !isSnapshot
+	isContinuousIntegrationEnvironment = Boolean.parseBoolean(System.getenv('CI'))
+	signingRequired = !(isSnapshot || isContinuousIntegrationEnvironment)
+	sonatypeSnapshotUrl = 'https://oss.sonatype.org/content/repositories/snapshots'
+	sonatypeStagingUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2'
+	builtDate = (new java.text.SimpleDateFormat("yyyy-MM-dd")).format(new Date())
+	oneLineDesc = 'An Open Source XMPP (Jabber) library'
+	junitVersion = '5.11.3'
+}
+
+group = 'org.jxmpp'
+
+java {
+	sourceCompatibility = javaVersion
+	targetCompatibility = sourceCompatibility
+}
+
+ext.sharedManifest = manifest {
+	attributes('Implementation-Version': version,
+			   'Implementation-GitRevision': ext.gitCommit,
+			   'Built-JDK': System.getProperty('java.version'),
+			   'Built-Gradle': gradle.gradleVersion,
+			   'Built-By': System.getProperty('user.name')
+			  )
+}
+
+eclipse {
+	classpath {
+		downloadJavadoc = true
+	}
+}
+
+// Make all project's 'test' target depend on javadoc, so that
+// javadoc is also linted.
+test.dependsOn javadoc
+
+tasks.withType(JavaCompile) {
+	// Some systems may not have set their platform default
+	// converter to 'utf8', but we use unicode in our source
+	// files. Therefore ensure that javac uses unicode
+	options.encoding = "utf8"
+	options.compilerArgs = [
+		'-Xlint:all',
+		// Set '-options' because a non-java7 javac will emit a
+		// warning if source/target is set to 1.7 and
+		// bootclasspath is *not* set.
+		'-Xlint:-options',
+		'-Werror',
+	]
+	options.release = Integer.valueOf(javaMajor)
+}
+
+jacoco {
+	toolVersion = "0.8.12"
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+	}
+}
+
+dependencies {
+	testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+	testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+
+	// https://stackoverflow.com/a/77274251/194894
+	testImplementation "org.junit.platform:junit-platform-launcher:1.11.0"
+
+	errorprone 'com.google.errorprone:error_prone_core:2.32.0'
+}
+
+test {
+	useJUnitPlatform()
+
+	maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+
+	// Enable full stacktraces of failed tests. Especially handy
+	// for environments like Travis.
+	testLogging {
+		events "failed"
+		exceptionFormat "full"
+	}
+}
+
+jar {
+	bundle {
+		bnd(
+				'-removeheaders': 'Tool, Bnd-*',
+				'-exportcontents': 'org.jxmpp.*',
+		)
+	}
+}
+checkstyle {
+	toolVersion = '10.18.2'
+}
+task sourcesJar(type: Jar, dependsOn: classes) {
+	archiveClassifier = 'sources'
+	from sourceSets.main.allSource
+}
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	archiveClassifier = 'javadoc'
+	from javadoc.destinationDir
+}
+task testsJar(type: Jar) {
+	archiveClassifier = 'tests'
+	from sourceSets.test.output
+}
+artifacts {
+	// See http://stackoverflow.com/a/21946676/194894
+	//testRuntime testsJar
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+			artifact sourcesJar
+			artifact javadocJar
+			artifact testsJar
+			pom {
+				name = 'JXMPP'
+				packaging = 'jar'
+				inceptionYear = '2014'
+				url = 'https://github.com/igniterealtime/jxmpp'
+				afterEvaluate {
+					description = project.description
+				}
+
+				issueManagement {
+					system = 'github'
+					url = 'https://github.com/igniterealtime/jxmpp/issues'
+				}
+
+				scm {
+					url = 'https://github.com/igniterealtime/jxmpp'
+					connection = 'scm:git:https://github.com/igniterealtime/jxmpp.git'
+					developerConnection = 'scm:git:https://github.com/igniterealtime/jxmpp.git'
+				}
+
+				licenses {
+					license {
+						name = 'The Apache Software License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+						distribution = 'repo'
+					}
+				}
+
+				developers {
+					developer {
+						id = 'flow'
+						name = 'Florian Schmaus'
+						email = 'flow@igniterealtime.org'
+					}
+				}
+			}
+		}
+	}
+	repositories {
+		maven {
+			url isSnapshot ? sonatypeSnapshotUrl : sonatypeStagingUrl
+			if (sonatypeCredentialsAvailable) {
+				credentials {
+					username = sonatypeUsername
+					password = sonatypePassword
+				}
+			}
+		}
+	}
+}
+
+// Workaround for gpg signatory not supporting the 'required' option
+// See https://github.com/gradle/gradle/issues/5064#issuecomment-381924984
+// Note what we use 'signing.gnupg.keyName' instead of 'signing.keyId'.
+tasks.withType(Sign) {
+	onlyIf {
+		project.hasProperty('signing.gnupg.keyName')
+	}
+}
+signing {
+	required { signingRequired }
+	useGpgCmd()
+	sign publishing.publications.mavenJava
+}
+
+tasks.withType(JavaCompile) {
+	options.errorprone {
+		disableWarningsInGeneratedCode = true
+		excludedPaths = ".*/jmh_generated/.*"
+		error(
+			"UnusedVariable",
+			"UnusedMethod",
+			"MethodCanBeStatic",
+		)
+		errorproneArgs = [
+			// Disable MissingCasesInEnumSwitch error prone check
+			// because this check is already done by javac as incomplete-switch.
+			'-Xep:MissingCasesInEnumSwitch:OFF',
+			'-Xep:StringSplitter:OFF',
+			'-Xep:JavaTimeDefaultTimeZone:OFF',
+			'-Xep:InlineMeSuggester:OFF',
+		]
+	}
+}
+
+// TODO: Note sure what this does (did). Was there prior the build-logic conversion.
+// dependencies {
+// 	androidProjects.each { project ->
+// 		api project
+// 	}
+// }
+
+def getGitCommit() {
+	def projectDirFile = new File("$projectDir")
+	def dotGit = new File(projectDirFile, ".git")
+	if (!dotGit.isDirectory()) return 'non-git build'
+
+	def cmd = 'git describe --always --tags --dirty=+'
+	def proc = cmd.execute(null, projectDirFile)
+	def gitCommit = proc.text.trim()
+	assert !gitCommit.isEmpty()
+	gitCommit
+}
+
+def readVersionFile() {
+	def versionFile = new File(rootDir, 'version')
+	if (!versionFile.isFile()) {
+		throw new Exception("Could not find version file")
+	}
+	if (versionFile.text.isEmpty()) {
+		throw new Exception("Version file does not contain a version")
+	}
+	versionFile.text.trim()
+}

@@ -1,0 +1,29 @@
+plugins {
+	id 'org.jxmpp.java-conventions'
+	id 'org.jxmpp.junit4-conventions'
+}
+
+apply plugin: 'application'
+
+description = """\
+A testframework for XMPP addresses (JIDs) and other XMPP strings."""
+
+mainClassName = 'org.jxmpp.strings.testframework.StringsTestframeworkMain'
+applicationDefaultJvmArgs = ["-enableassertions"]
+
+ext {
+	picocliVersion = "4.0.2"
+}
+
+dependencies {
+	api project(':jxmpp-jid')
+	api project(':jxmpp-stringprep-icu4j')
+	api project(':jxmpp-stringprep-libidn')
+	api project(':jxmpp-stringprep-rocksxmppprecis')
+
+	implementation 'org.parboiled:parboiled-java:1.4.1'
+	implementation "info.picocli:picocli:${picocliVersion}"
+	// Needed for org.apache.tools.ant.types.Commandline.translateCommandline(String)
+	// See StringsTestframeworkMain.main()
+	implementation 'org.apache.ant:ant:1.10.6'
+}

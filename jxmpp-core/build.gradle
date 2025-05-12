@@ -1,0 +1,12 @@
+plugins {
+	id 'org.jxmpp.java-conventions'
+	id 'org.jxmpp.android-conventions'
+	id 'org.jxmpp.junit4-conventions'
+}
+
+description = """\
+JXMPP core components."""
+
+dependencies {
+	api project(':jxmpp-util-cache')
+}

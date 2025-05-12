@@ -1,0 +1,129 @@
+-*- coding: utf-8; -*-
+
+Corpus of Invalid JIDs (XMPP Addresses)
+=======================================
+
+Parsing Expression Grammar
+--------------------------
+
+Corpus → Entry*
+Entry → InvalidJidEntry* | CommentLine*
+CommentLine → EveryNonRsChar* '\n'
+InvalidJidEntry → InvalidJidHeader InvalidJid
+InvalidJidHeader → 'invalid jid:\n'
+InvalidJid → EveryNonRsChar* 'RS' '\n'
+EveryNonRsChar → !'RS'
+
+For more information see 'jids/valid/main'.
+
+invalid jid:
+juliet@example.com
+SOH character (U+0001) in localpart
+
+invalid jid:
+@example.com
+Localpart is empty string
+RFC 7622 § 3.1 specifies that all parts must have a length
+between 1 to 1023 octets, making the empty string invalid as part.
+
+RFC 7622 Table 2
+================
+Simplified BSD License
+
+From RFC 7622 Table 2: A Sample of String That Violate the JID Rules
+
+Note that we do not include "Leading space in resourcepart" example
+here. As it is not valid. See Errata ID 4560
+https://www.rfc-editor.org/errata/eid4560
+
+invalid jid:
+"juliet"@example.com
+Quotation marks (U+0022) in localpart
+
+invalid jid:
+foo bar@example.com
+Space (U+0020) in localpart
+
+invalid jid:
+@example.com/
+Zero-length localpart and resourcepart
+
+invalid jid:
+henryⅣ@example.com
+he sixth character is ROMAN NUMERAL FOUR (U+2163)
+
+invalid jid:
+♚@example.com
+A localpart of BLACK CHESS KING (U+265A)
+
+invalid jid:
+juliet@
+A localpart without a domainpart
+
+invalid jid:
+/foobar
+A resourcepart without a domainpart
+
+Prosody Util Jid Spec
+=====================
+<https://hg.prosody.im/trunk/file/tip/spec/util_jid_spec.lua> (MIT)
+
+invalid jid:
+node@/server
+
+invalid jid:
+@server
+
+invalid jid:
+@server/resource
+
+invalid jid:
+@/resource
+
+invalid jid:
+@/resource
+
+invalid jid:
+@/
+
+invalid jid:
+/
+
+invalid jid:
+@
+
+invalid jid:
+user@
+
+invalid jid:
+user@@
+
+invalid jid:
+user@@host
+
+invalid jid:
+user@@host/resource
+
+invalid jid:
+user@@host/
+
+invalid jid:
+xsf@muc.xmpp.org/؜x
+xsf@muc.xmpp.org/<U+061C>x
+U+061C ARABIC LETTER MARK
+U+0078 LATIN SMALL LETTER X
+U+061C is assigned since 2013 and in the Cf category, which makes it a
+control character, which are disallowed in by the FreeformClass (RFC
+7564 § 4.3.3) and therefore disallowed in resourceparts.
+
+invalid jid:
+username@example.org@example.org
+According to the JID split rules this *must* result in a JID with
+'username' as localpart and 'example.org@example.org' as
+domainpart. But following the rules of RFC 7622, and especially
+considering RFC Errata ID# 5789
+(https://www.rfc-editor.org/errata/eid5789) the '@' in a domainpart is
+disallowed, because it is disallowed in NR-LDH labels and in U-Labels
+(see RFC 5892 Appendix B.1 where U+0040 '@' is DISALLOWED.
+
+End Of Corpus

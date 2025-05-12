@@ -1,0 +1,23 @@
+language: android
+android:
+  components:
+    - android-8
+jdk:
+  - openjdk8
+  - openjdk11
+
+cache:
+  directories:
+  - $HOME/.m2
+
+before_install:
+  - export JAVA_OPTS="-XX:MaxPermSize=512M"
+  - export GRADLE_VERSION=5.6.2
+  - wget https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-all.zip
+  - unzip -q gradle-${GRADLE_VERSION}-all.zip
+  - export PATH="$(pwd)/gradle-${GRADLE_VERSION}/bin:$PATH"
+
+install: gradle --stacktrace assemble
+script: gradle --stacktrace check publishToMavenLocal
+after_success:
+  gradle --stacktrace jacocoRootReport coveralls
